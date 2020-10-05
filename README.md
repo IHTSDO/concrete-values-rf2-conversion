@@ -1,7 +1,7 @@
 # concrete-values-rf2-conversion
 
 This conversion tool will take a snapshot with an optional extension and/or an optional delta archive and change existing stated concepts-as-number 
-relationships (in the stated OWL file) into concrete relationships.  The output is a delta archive.
+relationships (in the stated OWL file) into concrete relationships.  The output is an unzipped delta archive directory structure in a local output folder..
 
 The attributes to be replaced are specified in the config.txt file which can be modified as required.  The default file supplied contains the mapping for the International Edition attributes.
 
