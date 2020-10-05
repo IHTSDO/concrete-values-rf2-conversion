@@ -165,13 +165,17 @@ public class CdConversion
 		processAllArchiveFiles ( new FileProcessor() {
 			public void processFile (ArchiveType archiveType, Path p, InputStream is) throws IOException {
 				String fileName = p.getFileName().toString();
-				boolean isDelta = fileName.contains(DELTA);
+				boolean isDelta = archiveType.equals(ArchiveType.DELTA) && fileName.contains(DELTA + "_");  //SE has a file with the word delta in it!
 				boolean isOWL = fileName.startsWith("sct2_sRefset_OWLExpression");
 				for (String[] fields :  new ArchiveLines(is)) {
 					modifyIfRequired(archiveType, p, fields, isOWL, isDelta);
 				}
 			}
 		});
+		
+		if (owlPath == null) {
+			exit ("Failed to detect Stated OWL file in " + latestArchiveType + " archive.");
+		}
 		
 		info("Appending non-superseeded snapshot conversion remainder");
 		for (String[] fields : outputOWLMap.values()) {
@@ -323,7 +327,7 @@ public class CdConversion
 	private static File validateFile(String filePath) throws IOException {
 		File f = new File(filePath);
 		if (!f.canRead() || f.isDirectory() || !filePath.endsWith(".zip")) {
-			throw new IOException (filePath + " could not be read an archive file.");
+			throw new IOException ("'" + filePath + "' could not be read as an archive file.");
 		}
 		return f;
 	}
