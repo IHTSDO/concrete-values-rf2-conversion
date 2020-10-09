@@ -1,5 +1,7 @@
 # concrete-values-rf2-conversion
 
+__NOTE: Until SNOMED International have released an official technical preview containing concrete values, this conversion tool should be considered a work in progress.  In particular, the concepts featured in config.txt are subject to change until officially published in a release archive__
+
 This conversion tool will take a snapshot with an optional extension and/or an optional delta archive and change existing stated concepts-as-number 
 relationships (in the stated OWL file) into concrete relationships.  The output is an unzipped delta archive directory structure in a local output folder..
 
@@ -10,7 +12,7 @@ So, for example, in the OWL file ObjectSomeValuesFrom(:732946004 :38112003) will
 The inferred Relationship file is not modified, neither is a new inferred RelationshipConcreteValues file created. It is expected that the output of this process would be
 fed in a concrete-domain capable classifier so that these files would be modified and/or created as required.
 
-## usage
+## Usage
 `java -jar CdConversion -s <snapshot dependency archive> [-e <snapshot extension archive>] [-d <delta archive>] [-c <config mapping file> or config.txt is used]`
 
 ## Examples
