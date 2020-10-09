@@ -1,3 +1,6 @@
 /target/
 /output/
 .*
+*.zip
+cookies.txt
+location.txt
