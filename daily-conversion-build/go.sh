@@ -58,10 +58,28 @@ downloadPreviousRelease() {
 uploadInputFiles() {
 	filesUploaded=0
 	uploadUrl="${release_url}/api/v1/centers/${releaseCenter}/products/${productKey}/inputfiles"
-	echo "Uploading input files from ${converted_file_location} to ${uploadUrl}"
-
+	
+	echo "Renaming sct2 and der2 files to rel2 "
 	for file in `find . -type f -path "./${converted_file_location}/*" -name '*.txt'`;
 	do
+		if [[ $file =~ "sct2" ]]; then
+			mv -- "$file" "${file//sct2/rel2}"
+		elif [[ $file =~ "der2" ]]; then
+			mv -- "$file" "${file//der2/rel2}"
+		fi
+	done
+	
+	today=`date +'%Y%m%d'`
+	echo "Renaming rel2 files to target effective date: $effectiveDate"
+	for file in `find . -type f -path "./${converted_file_location}/*" -name '*.txt'`;
+	do
+			mv -- "$file" "${file//${today}/${effectiveDate}}"
+	done
+	
+	echo "Uploading input files from ${converted_file_location} to ${uploadUrl}"
+	for file in `find . -type f -path "./${converted_file_location}/*" -name '*.txt'`;
+	do
+		
 		echo "Upload Input File ${file}"
 		curl ${commonParams} -F "file=@${file}" ${release_url}/api/v1/centers/${releaseCenter}/products/${productKey}/inputfiles | grep HTTP | ensureCorrectResponse
 		filesUploaded=$((filesUploaded+1))
