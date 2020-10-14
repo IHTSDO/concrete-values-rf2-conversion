@@ -43,7 +43,7 @@ curl -sSi ${tsUrl}/snowstorm/snomed-ct/exports \
   
 	delta_location=`head -1 location.txt | tr -d '\r'`
 	echo "Recovering delta from $delta_location"
-	wget --load-cookies cookies.txt ${delta_location}/archive -O ${deltaArchiveFile}
+	wget -q --load-cookies cookies.txt ${delta_location}/archive -O ${deltaArchiveFile}
 }
 
 downloadPreviousRelease() {
@@ -51,7 +51,7 @@ downloadPreviousRelease() {
 		echo "Previous published release ${previousRelease} already present"
 	else
 		echo "Downloading previous published release: ${previousRelease} from S3 ${s3BucketLocation}"
-		aws s3 cp s3://${s3BucketLocation}${previousRelease} ./
+		aws s3 cp --no-progress s3://${s3BucketLocation}${previousRelease} ./
 	fi
 }
 
@@ -73,7 +73,7 @@ uploadInputFiles() {
 	echo "Renaming rel2 files to target effective date: $effectiveDate"
 	for file in `find . -type f -path "./${converted_file_location}/*" -name '*.txt'`;
 	do
-			mv -- "$file" "${file//${today}/${effectiveDate}}"
+		mv -- "$file" "${file//${today}/${effectiveDate}}"
 	done
 	
 	echo "Uploading input files from ${converted_file_location} to ${uploadUrl}"
@@ -130,7 +130,7 @@ loginToIMS
 downloadDelta
 downloadPreviousRelease
 mkdir -p ${converted_file_location}
-rm -r ./${converted_file_location}/*
+rm -r ./${converted_file_location}/* || true
 echo "Performing Concrete Domain Conversion..."
 java -jar target/CdConversion.jar -s ${previousRelease} -d ${deltaArchiveFile}
 callSrs
