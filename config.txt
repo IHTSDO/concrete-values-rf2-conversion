@@ -1,6 +1,9 @@
-732944001	3264475007	decimal
-732946004	3264476008	decimal
-733724008	3264477004	decimal
-733723002	3264478009	decimal
-766952006	3264479001	decimal
-766953001	3264480003	decimal
+732944001	3311482005	decimal	Has presentation strength numerator value (attribute)
+732946004	3311481003	decimal	Has presentation strength denominator value (attribute)
+733723002	3311483000	decimal	Has concentration strength denominator value (attribute)
+733724008	3311484006	decimal	Has concentration strength numerator value (attribute)
+766952006	3311487004	integer	Count of base of active ingredient (attribute)
+766953001	3311486008	integer	Count of active ingredient (attribute)
+766954007	3311485007	integer	Count of base and modification pair (attribute)
+774161007	3311488009	integer	Has pack size (attribute)
+784276002	3311489001	integer	Count of clinical drug type (attribute)
