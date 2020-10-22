@@ -15,7 +15,7 @@ loadTermServerData=false
 loadExternalRefsetData=false
 converted_file_location=output
 releaseCenter=international
-branchPath=MAIN
+#branchPath=MAIN
 
 s3BucketLocation="snomed-international/authoring/versioned-content/"
 deltaArchiveFile="delta_archive.zip"
