@@ -22,7 +22,6 @@ deltaArchiveFile="delta_archive.zip"
 curlFlags="isS"
 commonParams="--cookie-jar cookies.txt --cookie cookies.txt -${curlFlags} --retry 0"
 
-
 ims_url=https://${envPrefix}ims.ihtsdotools.org
 tsUrl=https://${envPrefix}snowstorm.ihtsdotools.org
 release_url=https:///${envPrefix}release.ihtsdotools.org
@@ -42,6 +41,8 @@ curl -sSi ${tsUrl}/snowstorm/snomed-ct/exports \
   --data-binary $'{ "branchPath": "MAIN",  "type": "DELTA"\n}' | grep -oP 'Location: \K.*' > location.txt
   
 	delta_location=`head -1 location.txt | tr -d '\r'`
+	#Temp workaround for INFRA-1489
+	delta_location="${delta_location//http:\//https:\/\/}"
 	echo "Recovering delta from $delta_location"
 	wget -q --load-cookies cookies.txt ${delta_location}/archive -O ${deltaArchiveFile}
 }
@@ -98,7 +99,12 @@ callSrs() {
 	
 	uploadInputFiles
 	
-	echo $product_key
+	echo "Preparing configuration for product: $product_key"
+	
+	url="$release_url/api/v1/centers/${releaseCenter}/products/${productKey}/inputfiles/prepare" 
+	echo "Calling 'Prepare Files' with: $url"
+	curl ${commonParams} -X POST $url -H "Content-Type: application/json" -d "$configJson" | grep HTTP | ensureCorrectResponse
+	
 	configJson="{\"effectiveDate\":\"${effectiveDate}\", \"exportCategory\":\"$export_category\", \"branchPath\":\"$branchPath\", \"termServerUrl\":\"$tsUrl\",\"loadTermServerData\":$loadTermServerData,\"loadExternalRefsetData\":$loadExternalRefsetData}"
 	echo "JSON to post: $configJson"
 	
