@@ -15,6 +15,7 @@ loadTermServerData=false
 loadExternalRefsetData=false
 converted_file_location=output
 releaseCenter=international
+source=terminology-server
 #branchPath=MAIN
 
 s3BucketLocation="snomed-international/authoring/versioned-content/"
@@ -39,7 +40,7 @@ curl -sSi ${tsUrl}/snowstorm/snomed-ct/exports \
   -H 'Content-Type: application/json' \
   --cookie cookies.txt \
   --data-binary $'{ "branchPath": "MAIN",  "type": "DELTA"\n}' | grep -oP 'Location: \K.*' > location.txt
-  
+
 	delta_location=`head -1 location.txt | tr -d '\r'`
 	#Temp workaround for INFRA-1489
 	delta_location="${delta_location//http:\//https:\/\/}"
@@ -56,10 +57,28 @@ downloadPreviousRelease() {
 	fi
 }
 
+uploadSourceFiles() {
+	filesUploaded=0
+	uploadUrl="${release_url}/api/v1/centers/${releaseCenter}/products/${productKey}/sourcefiles/${source}"
+	echo "Uploading input files from ${converted_file_location} to ${uploadUrl}"
+	for file in `find . -type f -path "./${converted_file_location}/*" -name '*.txt'`;
+	do
+		echo "Upload Source File ${file}"
+		curl ${commonParams} -F "file=@${file}" uploadUrl | grep HTTP | ensureCorrectResponse
+		filesUploaded=$((filesUploaded+1))
+	done
+
+	if [ ${filesUploaded} -lt 1 ]
+	then
+		echo -e "Failed to find files to upload.\nScript halted."
+		exit -1
+	fi
+}
+
 uploadInputFiles() {
 	filesUploaded=0
 	uploadUrl="${release_url}/api/v1/centers/${releaseCenter}/products/${productKey}/inputfiles"
-	
+
 	echo "Renaming sct2 and der2 files to rel2 "
 	for file in `find . -type f -path "./${converted_file_location}/*" -name '*.txt'`;
 	do
@@ -69,24 +88,24 @@ uploadInputFiles() {
 			mv -- "$file" "${file//der2/rel2}"
 		fi
 	done
-	
+
 	today=`date +'%Y%m%d'`
 	echo "Renaming rel2 files to target effective date: $effectiveDate"
 	for file in `find . -type f -path "./${converted_file_location}/*" -name '*.txt'`;
 	do
 		mv -- "$file" "${file//${today}/${effectiveDate}}"
 	done
-	
+
 	echo "Uploading input files from ${converted_file_location} to ${uploadUrl}"
 	for file in `find . -type f -path "./${converted_file_location}/*" -name '*.txt'`;
 	do
-		
+
 		echo "Upload Input File ${file}"
 		curl ${commonParams} -F "file=@${file}" ${release_url}/api/v1/centers/${releaseCenter}/products/${productKey}/inputfiles | grep HTTP | ensureCorrectResponse
 		filesUploaded=$((filesUploaded+1))
 	done
-	
-	if [ ${filesUploaded} -lt 1 ] 
+
+	if [ ${filesUploaded} -lt 1 ]
 	then
 		echo -e "Failed to find files to upload.\nScript halted."
 		exit -1
@@ -94,23 +113,26 @@ uploadInputFiles() {
 }
 
 callSrs() {
+	echo "Deleting previous delta source files from: $source "
+	curl ${commonParams} -X DELETE ${release_url}/api/v1/centers/${releaseCenter}/products/${productKey}/sourcefiles/${source} | grep HTTP | ensureCorrectResponse
+
 	echo "Deleting previous delta Input Files "
 	curl ${commonParams} -X DELETE ${release_url}/api/v1/centers/${releaseCenter}/products/${productKey}/inputfiles/*.txt | grep HTTP | ensureCorrectResponse
-	
-	uploadInputFiles
-	
+
+	uploadSourceFiles
+
 	echo "Preparing configuration for product: $product_key"
-	
-	url="$release_url/api/v1/centers/${releaseCenter}/products/${productKey}/inputfiles/prepare" 
+
+	url="$release_url/api/v1/centers/${releaseCenter}/products/${productKey}/inputfiles/prepare"
 	echo "Calling 'Prepare Files' with: $url"
 	curl ${commonParams} -X POST $url -H "Content-Type: application/json" -d "$configJson" | grep HTTP | ensureCorrectResponse
-	
+
 	configJson="{\"effectiveDate\":\"${effectiveDate}\", \"exportCategory\":\"$export_category\", \"branchPath\":\"$branchPath\", \"termServerUrl\":\"$tsUrl\",\"loadTermServerData\":$loadTermServerData,\"loadExternalRefsetData\":$loadExternalRefsetData}"
 	echo "JSON to post: $configJson"
-	
-	url="$release_url/api/v1/centers/${releaseCenter}/products/${productKey}/release" 
+
+	url="$release_url/api/v1/centers/${releaseCenter}/products/${productKey}/release"
 	echo "URL to post: $url"
-	
+
 	curl ${commonParams} -X POST $url -H "Content-Type: application/json" -d "$configJson" | grep HTTP | ensureCorrectResponse
 	echo ""
 	echo "Release build for product $product_key is started."
@@ -119,7 +141,7 @@ callSrs() {
 }
 
 ensureCorrectResponse() {
-	while read response 
+	while read response
 	do
 		httpResponseCode=`echo $response | grep "HTTP" | awk '{print $2}'`
 		echo " Response received: $response "
@@ -140,4 +162,3 @@ rm -r ./${converted_file_location}/* || true
 echo "Performing Concrete Domain Conversion..."
 java -jar target/CdConversion.jar -s ${previousRelease} -d ${deltaArchiveFile}
 callSrs
-
