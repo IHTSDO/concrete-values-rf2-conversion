@@ -54,7 +54,7 @@ classify() {
   set -e;
   echo "Zipping up the converted files"
   convertedArchive="convertedArchive.zip"
-  zip ${convertedArchive} ${converted_file_location}/*.txt
+  zip ${convertedArchive} ./${converted_file_location}/*.txt
 
 	echo "Calling classification"
 	curl -sSi ${classifyUrl}/classification-service/classifications \
