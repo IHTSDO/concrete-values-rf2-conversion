@@ -20,12 +20,14 @@ source=terminology-server
 
 s3BucketLocation="snomed-international/authoring/versioned-content/"
 deltaArchiveFile="delta_archive.zip"
+classifiedArchiveFile="classified_archive.zip"
 curlFlags="isS"
 commonParams="--cookie-jar cookies.txt --cookie cookies.txt -${curlFlags} --retry 0"
 
 ims_url=https://${envPrefix}ims.ihtsdotools.org
 tsUrl=https://${envPrefix}snowstorm.ihtsdotools.org
 release_url=https:///${envPrefix}release.ihtsdotools.org
+classifyUrl=https:///${envPrefix}classification.ihtsdotools.org
 
 loginToIMS() {
 	echo "Logging in as $username to $ims_url"
@@ -39,14 +41,60 @@ curl -sSi ${tsUrl}/snowstorm/snomed-ct/exports \
   -H 'Accept: application/json' \
   -H 'Content-Type: application/json' \
   --cookie cookies.txt \
-  --data-binary $'{ "branchPath": "MAIN",  "type": "DELTA"\n}' | grep -oP 'Location: \K.*' > location.txt
+  --data-binary $'{ "branchPath": "MAIN",  "type": "DELTA"}' | grep -oP 'Location: \K.*' > location.txt
 
-	delta_location=`head -1 location.txt | tr -d '\r'`
+	deltaLocation=`head -1 location.txt | tr -d '\r'`
 	#Temp workaround for INFRA-1489
-	delta_location="${delta_location//http:\//https:\/\/}"
-	echo "Recovering delta from $delta_location"
-	wget -q --load-cookies cookies.txt ${delta_location}/archive -O ${deltaArchiveFile}
+	deltaLocation="${deltaLocation//http:\//https:\/\/}"
+	echo "Recovering delta from $deltaLocation"
+	wget -q --load-cookies cookies.txt ${deltaLocation}/archive -O ${deltaArchiveFile}
 }
+
+classify() {
+  set -e;
+  echo "Zipping up the converted files"
+  convertedArchive="convertedArchive.zip"
+  zip ${convertedArchive} ${converted_file_location}/*.txt
+
+	echo "Calling classification"
+	curl -sSi ${classifyUrl}/classification-service/classifications \
+		--cookie cookies.txt \
+		-H 'Connection: keep-alive' \
+	  -F "previousPackage=${previousRelease}" \
+	  -F "rf2Delta=@${convertedArchive}" | grep -oP 'Location: \K.*' > classification.txt
+
+	classificationLocation=`head -1 classification.txt | tr -d '\r'` || echo 'Failed to recover classification identifier'
+	echo "Classification location: $classificationLocation"
+	set -x;
+	output=
+	count=0
+	until [[ $output =~ COMPLETED ]]; do
+		output=$(checkClassificationStatus 2>&1)
+		echo "checked received: $output"
+
+		((++count))
+		echo "Checking response"
+
+		if [[ $output =~ FAILED ]]; then
+			echo "Classification reported failure"
+			exit -1
+		elif (( count > 20 )); then
+			echo "Classification took more than 20 minutes - giving up"
+			exit -1
+		elif [[ $output =~ RUNNING ]]; then
+			sleep 60
+		fi
+	done
+
+	echo "Classification successful.  Recovering results from $classificationLocation"
+	wget -q --load-cookies cookies.txt ${classificationLocation}/results/rf2 -O ${classifiedArchiveFile}
+}
+
+checkClassificationStatus() {
+	curl -sS ${classificationLocation} \
+		--cookie cookies.txt
+}
+
 
 downloadPreviousRelease() {
 	if [ -f "${previousRelease}" ]; then
@@ -58,6 +106,13 @@ downloadPreviousRelease() {
 }
 
 uploadSourceFiles() {
+	today=`date +'%Y%m%d'`
+	echo "Renaming rf2 files to target effective date: $effectiveDate"
+	for file in `find . -type f -path "./${converted_file_location}/*" -name '*.txt'`;
+	do
+		mv -- "$file" "${file//${today}/${effectiveDate}}"
+	done
+
 	filesUploaded=0
 	uploadUrl="${release_url}/api/v1/centers/${releaseCenter}/products/${productKey}/sourcefiles/${source}"
 	echo "Uploading input files from ${converted_file_location} to ${uploadUrl}"
@@ -113,8 +168,8 @@ uploadInputFiles() {
 }
 
 callSrs() {
-	echo "Deleting previous delta source files from: $source "
-	curl ${commonParams} -X DELETE ${release_url}/api/v1/centers/${releaseCenter}/products/${productKey}/sourcefiles/${source} | grep HTTP | ensureCorrectResponse
+   echo "Deleting previous delta source files from: $source "
+   curl ${commonParams} -X DELETE ${release_url}/api/v1/centers/${releaseCenter}/products/${productKey}/sourcefiles/${source} | grep HTTP | ensureCorrectResponse
 
 	echo "Deleting previous delta Input Files "
 	curl ${commonParams} -X DELETE ${release_url}/api/v1/centers/${releaseCenter}/products/${productKey}/inputfiles/*.txt | grep HTTP | ensureCorrectResponse
@@ -161,4 +216,5 @@ mkdir -p ${converted_file_location}
 rm -r ./${converted_file_location}/* || true
 echo "Performing Concrete Domain Conversion..."
 java -jar target/CdConversion.jar -s ${previousRelease} -d ${deltaArchiveFile}
+classify
 callSrs
