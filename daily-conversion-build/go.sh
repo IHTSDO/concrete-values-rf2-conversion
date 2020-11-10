@@ -64,7 +64,7 @@ uploadSourceFiles() {
 	for file in `find . -type f -path "./${converted_file_location}/*" -name '*.txt'`;
 	do
 		echo "Upload Source File ${file}"
-		curl ${commonParams} -F "file=@${file}" uploadUrl | grep HTTP | ensureCorrectResponse
+		curl ${commonParams} -F "file=@${file}" ${uploadUrl} | grep HTTP | ensureCorrectResponse
 		filesUploaded=$((filesUploaded+1))
 	done
 
