@@ -76,7 +76,6 @@ classify() {
 
 	classificationLocation=`head -1 classification.txt | tr -d '\r'` || echo 'Failed to recover classification identifier'
 	echo "Classification location: $classificationLocation"
-	set -x;
 	output=
 	count=0
 	until [[ $output =~ COMPLETED ]]; do
