@@ -18,7 +18,8 @@ previousRelease=SnomedCT_InternationalRF2_PRODUCTION_20200731T120000Z.zip
 productKey=concrete_domains_daily_build
 export_category="UNPUBLISHED"
 loadTermServerData=false
-loadExternalRefsetData=false
+#Parameters expected to be made available from Jenkins
+#loadExternalRefsetData=true
 converted_file_location=output
 releaseCenter=international
 source=terminology-server
@@ -50,11 +51,11 @@ downloadDelta() {
   --data-binary $'{ "branchPath": "'$branchPath'",  "type": "DELTA"}' | grep -oP 'Location: \K.*' > location.txt || echo "Failed to obtain delta file"
 
 	deltaLocation=`head -1 location.txt | tr -d '\r'`
-	
+
 	if [ -z "${deltaLocation}" ]; then
 	   exit -1
 	fi
-	
+
 	#Temp workaround for INFRA-1489
 	deltaLocation="${deltaLocation//http:\//https:\/\/}"
 	echo "Recovering delta from $deltaLocation"
@@ -66,7 +67,7 @@ classify() {
   echo "Zipping up the converted files"
   convertedArchive="convertedArchive.zip"
   zip -r ${convertedArchive} ${converted_file_location}
-  
+
 	echo "Calling classification"
 	curl -sSi ${classifyUrl}/classification-service/classifications \
 		--cookie cookies.txt \
@@ -109,18 +110,18 @@ applyClassificationChanges() {
 	classificationOutputDir="classification_output"
 	mkdir ${classificationOutputDir} || true
 	unzip -j -o ${classifiedArchiveFile} -d  ${classificationOutputDir}
-	
+
 	#We know the names of the files to append first the relationship delta
 	sourceFile=$(find ${classificationOutputDir}/*Relationship_Delta*)
 	targetFile=$(find ${converted_file_location} -name *_Relationship_Delta*)
-	
+
 	echo "Appending ${sourceFile} to ${targetFile}"
 	tail -n +2 ${sourceFile} >> ${targetFile}
 
 	#Now are we also appending the concrete values file, or does it not exist yet?
 	sourceFile=$(find ${classificationOutputDir}/*RelationshipConcreteValues_Delta*)
 	targetFile=$(find ${converted_file_location} -name *RelationshipConcreteValues_Delta*)
-	
+
 	if [ -z "${targetFile}" ]; then
 		newLocation="${converted_file_location}/SnomedCT_Export/RF2Release/Terminology"
 		echo "Copying ${sourceFile} to ${newLocation}"
@@ -176,11 +177,6 @@ callSrs() {
 	uploadSourceFiles
 
 	echo "Preparing configuration for product: $product_key"
-
-	url="$release_url/api/v1/centers/${releaseCenter}/products/${productKey}/inputfiles/prepare"
-	echo "Calling 'Prepare Files' with: $url"
-	curl ${commonParams} -X POST $url -H "Content-Type: application/json" -d "$configJson" | grep HTTP | ensureCorrectResponse
-
 	configJson="{\"effectiveDate\":\"${effectiveDate}\", \"exportCategory\":\"$export_category\", \"branchPath\":\"$branchPath\", \"termServerUrl\":\"$tsUrl\",\"loadTermServerData\":$loadTermServerData,\"loadExternalRefsetData\":$loadExternalRefsetData}"
 	echo "JSON to post: $configJson"
 
