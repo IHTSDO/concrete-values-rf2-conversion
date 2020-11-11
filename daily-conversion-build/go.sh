@@ -6,7 +6,13 @@ set -e; # Stop on error
 envPrefix="dev-"
 #username=
 #password=
-branch=MAIN
+#branchPath=MAIN
+
+if [ -z "${branchPath}" ]; then
+	echo "Environmental variable 'branchPath' has not been specified.  Unable to continue"
+	exit -1
+fi
+
 effectiveDate=20210131
 previousRelease=SnomedCT_InternationalRF2_PRODUCTION_20200731T120000Z.zip
 productKey=concrete_domains_daily_build
@@ -16,7 +22,6 @@ loadExternalRefsetData=false
 converted_file_location=output
 releaseCenter=international
 source=terminology-server
-#branchPath=MAIN
 
 s3BucketLocation="snomed-international/authoring/versioned-content/"
 deltaArchiveFile="delta_archive.zip"
@@ -36,14 +41,20 @@ loginToIMS() {
 }
 
 downloadDelta() {
-curl -sSi ${tsUrl}/snowstorm/snomed-ct/exports \
+	echo "Initiating Delta"
+	curl -sSi ${tsUrl}/snowstorm/snomed-ct/exports \
   -H 'Connection: keep-alive' \
   -H 'Accept: application/json' \
   -H 'Content-Type: application/json' \
   --cookie cookies.txt \
-  --data-binary $'{ "branchPath": "MAIN",  "type": "DELTA"}' | grep -oP 'Location: \K.*' > location.txt
+  --data-binary $'{ "branchPath": "'$branchPath'",  "type": "DELTA"}' | grep -oP 'Location: \K.*' > location.txt || echo "Failed to obtain delta file"
 
 	deltaLocation=`head -1 location.txt | tr -d '\r'`
+	
+	if [ -z "${deltaLocation}" ]; then
+	   exit -1
+	fi
+	
 	#Temp workaround for INFRA-1489
 	deltaLocation="${deltaLocation//http:\//https:\/\/}"
 	echo "Recovering delta from $deltaLocation"
@@ -54,8 +65,8 @@ classify() {
   set -e;
   echo "Zipping up the converted files"
   convertedArchive="convertedArchive.zip"
-  zip ${convertedArchive} ./${converted_file_location}/*.txt
-
+  zip -r ${convertedArchive} ${converted_file_location}
+  
 	echo "Calling classification"
 	curl -sSi ${classifyUrl}/classification-service/classifications \
 		--cookie cookies.txt \
@@ -95,6 +106,32 @@ checkClassificationStatus() {
 		--cookie cookies.txt
 }
 
+applyClassificationChanges() {
+	classificationOutputDir="classification_output"
+	mkdir ${classificationOutputDir} || true
+	unzip -j -o ${classifiedArchiveFile} -d  ${classificationOutputDir}
+	
+	#We know the names of the files to append first the relationship delta
+	sourceFile=$(find ${classificationOutputDir}/*Relationship_Delta*)
+	targetFile=$(find ${converted_file_location} -name *_Relationship_Delta*)
+	
+	echo "Appending ${sourceFile} to ${targetFile}"
+	tail -n +2 ${sourceFile} >> ${targetFile}
+
+	#Now are we also appending the concrete values file, or does it not exist yet?
+	sourceFile=$(find ${classificationOutputDir}/*RelationshipConcreteValues_Delta*)
+	targetFile=$(find ${converted_file_location} -name *RelationshipConcreteValues_Delta*)
+	
+	if [ -z "${targetFile}" ]; then
+		newLocation="${converted_file_location}/SnomedCT_Export/RF2Release/Terminology"
+		echo "Copying ${sourceFile} to ${newLocation}"
+		cp ${sourceFile} ${newLocation}
+	else
+		echo "Appending ${sourceFile} to ${targetFile}"
+		tail -n +2 ${sourceFile} >> ${targetFile}
+	fi
+}
+
 
 downloadPreviousRelease() {
 	if [ -f "${previousRelease}" ]; then
@@ -130,46 +167,9 @@ uploadSourceFiles() {
 	fi
 }
 
-uploadInputFiles() {
-	filesUploaded=0
-	uploadUrl="${release_url}/api/v1/centers/${releaseCenter}/products/${productKey}/inputfiles"
-
-	echo "Renaming sct2 and der2 files to rel2 "
-	for file in `find . -type f -path "./${converted_file_location}/*" -name '*.txt'`;
-	do
-		if [[ $file =~ "sct2" ]]; then
-			mv -- "$file" "${file//sct2/rel2}"
-		elif [[ $file =~ "der2" ]]; then
-			mv -- "$file" "${file//der2/rel2}"
-		fi
-	done
-
-	today=`date +'%Y%m%d'`
-	echo "Renaming rel2 files to target effective date: $effectiveDate"
-	for file in `find . -type f -path "./${converted_file_location}/*" -name '*.txt'`;
-	do
-		mv -- "$file" "${file//${today}/${effectiveDate}}"
-	done
-
-	echo "Uploading input files from ${converted_file_location} to ${uploadUrl}"
-	for file in `find . -type f -path "./${converted_file_location}/*" -name '*.txt'`;
-	do
-
-		echo "Upload Input File ${file}"
-		curl ${commonParams} -F "file=@${file}" ${release_url}/api/v1/centers/${releaseCenter}/products/${productKey}/inputfiles | grep HTTP | ensureCorrectResponse
-		filesUploaded=$((filesUploaded+1))
-	done
-
-	if [ ${filesUploaded} -lt 1 ]
-	then
-		echo -e "Failed to find files to upload.\nScript halted."
-		exit -1
-	fi
-}
-
 callSrs() {
-   echo "Deleting previous delta source files from: $source "
-   curl ${commonParams} -X DELETE ${release_url}/api/v1/centers/${releaseCenter}/products/${productKey}/sourcefiles/${source} | grep HTTP | ensureCorrectResponse
+	echo "Deleting previous delta source files from: $source "
+	curl ${commonParams} -X DELETE ${release_url}/api/v1/centers/${releaseCenter}/products/${productKey}/sourcefiles/${source} | grep HTTP | ensureCorrectResponse
 
 	echo "Deleting previous delta Input Files "
 	curl ${commonParams} -X DELETE ${release_url}/api/v1/centers/${releaseCenter}/products/${productKey}/inputfiles/*.txt | grep HTTP | ensureCorrectResponse
@@ -217,4 +217,5 @@ rm -r ./${converted_file_location}/* || true
 echo "Performing Concrete Domain Conversion..."
 java -jar target/CdConversion.jar -s ${previousRelease} -d ${deltaArchiveFile}
 classify
+applyClassificationChanges
 callSrs
