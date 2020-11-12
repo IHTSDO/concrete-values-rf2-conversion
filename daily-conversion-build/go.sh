@@ -147,7 +147,7 @@ uploadSourceFiles() {
 	echo "Renaming rf2 files to target effective date: $effectiveDate"
 	for file in `find . -type f -path "./${converted_file_location}/*" -name '*.txt'`;
 	do
-		mv -- "$file" "${file//${today}/${effectiveDate}}"
+		mv -- "$file" "${file//${today}/${effectiveDate}}" || true
 	done
 
 	filesUploaded=0
