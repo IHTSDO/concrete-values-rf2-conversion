@@ -109,21 +109,25 @@ checkClassificationStatus() {
 applyClassificationChanges() {
 	classificationOutputDir="classification_output"
 	mkdir ${classificationOutputDir} || true
+	rm ${classificationOutputDir}/*.txt || true
 	unzip -j -o ${classifiedArchiveFile} -d  ${classificationOutputDir}
 
 	#We know the names of the files to append first the relationship delta
 	sourceFile=$(find ${classificationOutputDir}/*Relationship_Delta*)
 	targetFile=$(find ${converted_file_location} -name *_Relationship_Delta*)
 
-	echo "Appending ${sourceFile} to ${targetFile}"
-	tail -n +2 ${sourceFile} >> ${targetFile}
+	javaCmd="java -cp target/CdConversion.jar org.snomed.otf.cd.ApplyClassificationDelta ${sourceFile} ${targetFile}"
+	echo "Appending ${sourceFile} to ${targetFile} using ${javaCmd}"
+	${javaCmd}
 
 	#Now are we also appending the concrete values file, or does it not exist yet?
 	sourceFile=$(find ${classificationOutputDir}/*RelationshipConcreteValues_Delta*)
+	sourceFileRenamed=$(basename $sourceFile)
+	sourceFileRenamed=${sourceFileRenamed//Classification/INT}
 	targetFile=$(find ${converted_file_location} -name *RelationshipConcreteValues_Delta*)
 
 	if [ -z "${targetFile}" ]; then
-		newLocation="${converted_file_location}/SnomedCT_Export/RF2Release/Terminology"
+		newLocation="${converted_file_location}/SnomedCT_Export/RF2Release/Terminology/${sourceFileRenamed}"
 		echo "Copying ${sourceFile} to ${newLocation}"
 		cp ${sourceFile} ${newLocation}
 	else
