@@ -32,7 +32,7 @@ public class ApplyClassificationDelta {
 		recoverExistingIds();
 		
 		//Move the relationship delta to a temp location so we can recreate it
-		String origPath = relationshipDelta.getAbsolutePath();
+		String origPath = relationshipDelta.getPath();
 		relationshipDeltaTmp = new File ( origPath + ".tmp");
 		relationshipDelta.renameTo(relationshipDeltaTmp);
 		relationshipDelta = new File (origPath);
@@ -54,7 +54,7 @@ public class ApplyClassificationDelta {
 			sc = new Scanner(is, "UTF-8");
 			while (sc.hasNextLine()) {
 				String[] items = sc.nextLine().split("\t");
-				if (items.length > 1 && items[0].length() > 1) {
+				if (items.length > 1 && items[0].length() > 5) {
 					existingIds.add(items[0]);
 				}
 			}
