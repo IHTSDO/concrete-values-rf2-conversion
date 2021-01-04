@@ -7,9 +7,15 @@ envPrefix="dev-"
 #username=
 #password=
 #branchPath=MAIN
+#loadExternalRefsetData=true
 
 if [ -z "${branchPath}" ]; then
 	echo "Environmental variable 'branchPath' has not been specified.  Unable to continue"
+	exit -1
+fi
+
+if [ -z "${branchPath}" ]; then
+	echo "Environmental variable 'loadExternalRefsetData' has not been specified.  Unable to continue"
 	exit -1
 fi
 
@@ -18,8 +24,6 @@ previousRelease=SnomedCT_InternationalRF2_PRODUCTION_20200731T120000Z.zip
 productKey=concrete_domains_daily_build
 export_category="UNPUBLISHED"
 loadTermServerData=false
-#Parameters expected to be made available from Jenkins
-#loadExternalRefsetData=true
 converted_file_location=output
 releaseCenter=international
 source=terminology-server
@@ -63,18 +67,19 @@ downloadDelta() {
 }
 
 classify() {
-  set -e;
   echo "Zipping up the converted files"
   convertedArchive="convertedArchive.zip"
   zip -r ${convertedArchive} ${converted_file_location}
 
+	set -x;
 	echo "Calling classification"
 	curl -sSi ${classifyUrl}/classification-service/classifications \
 		--cookie cookies.txt \
 		-H 'Connection: keep-alive' \
 	  -F "previousPackage=${previousRelease}" \
 	  -F "rf2Delta=@${convertedArchive}" | grep -oP 'Location: \K.*' > classification.txt
-
+	set +x;
+	
 	classificationLocation=`head -1 classification.txt | tr -d '\r'` || echo 'Failed to recover classification identifier'
 	echo "Classification location: $classificationLocation"
 	output=
