@@ -8,6 +8,7 @@ envPrefix="dev-"
 #password=
 #branchPath=MAIN
 #loadExternalRefsetData=true
+#previousPackage=prod_main_2021-01-31_20201124120000.zip
 
 if [ -z "${branchPath}" ]; then
 	echo "Environmental variable 'branchPath' has not been specified.  Unable to continue"
@@ -19,8 +20,12 @@ if [ -z "${branchPath}" ]; then
 	exit -1
 fi
 
+if [ -z "${previousPackage}" ]; then
+	echo "Environmental variable 'previousPackage' has not been specified.  Unable to continue"
+	exit -1
+fi
+
 effectiveDate=20210131
-previousRelease=SnomedCT_InternationalRF2_PRODUCTION_20200731T120000Z.zip
 productKey=concrete_domains_daily_build
 export_category="UNPUBLISHED"
 loadTermServerData=false
@@ -46,7 +51,7 @@ loginToIMS() {
 }
 
 downloadDelta() {
-	echo "Initiating Delta"
+	echo "Initiating Delta export against ${branchPath}"
 	curl -sSi ${tsUrl}/snowstorm/snomed-ct/exports \
   -H 'Connection: keep-alive' \
   -H 'Accept: application/json' \
@@ -70,17 +75,27 @@ classify() {
   echo "Zipping up the converted files"
   convertedArchive="convertedArchive.zip"
   zip -r ${convertedArchive} ${converted_file_location}
+  
+  echo "Zipping up the converted files needed for classification"
+  convertedClassificationArchive="convertedClassificationArchive.zip"
+	shopt -s globstar
+  zip  ${convertedClassificationArchive} ${converted_file_location}/**/*Concept* ${converted_file_location}/**/*_Relationship* ${converted_file_location}/**/*OWL* ${converted_file_location}/**/*_cissccRefset_MRCMAttributeDomain*
 
-	set -x;
 	echo "Calling classification"
 	curl -sSi ${classifyUrl}/classification-service/classifications \
 		--cookie cookies.txt \
 		-H 'Connection: keep-alive' \
-	  -F "previousPackage=${previousRelease}" \
-	  -F "rf2Delta=@${convertedArchive}" | grep -oP 'Location: \K.*' > classification.txt
-	set +x;
+	  -F "previousPackage=${previousPackage}" \
+	  -F "rf2Delta=@${convertedClassificationArchive}" | ( grep -oP 'Location: \K.*' || true ) > classification.txt
 	
-	classificationLocation=`head -1 classification.txt | tr -d '\r'` || echo 'Failed to recover classification identifier'
+	classificationLocation=`head -1 classification.txt | tr -d '\r'`
+	
+	if [ -z "${classificationLocation}" ]; then
+		echo "Failed to recover classification identifier"
+		exit -2
+	fi
+	
+	
 	echo "Classification location: $classificationLocation"
 	output=
 	count=0
@@ -142,12 +157,12 @@ applyClassificationChanges() {
 }
 
 
-downloadPreviousRelease() {
-	if [ -f "${previousRelease}" ]; then
-		echo "Previous published release ${previousRelease} already present"
+downloadpreviousPackage() {
+	if [ -f "${previousPackage}" ]; then
+		echo "Previous published release ${previousPackage} already present"
 	else
-		echo "Downloading previous published release: ${previousRelease} from S3 ${s3BucketLocation}"
-		aws s3 cp --no-progress s3://${s3BucketLocation}${previousRelease} ./
+		echo "Downloading previous published release: ${previousPackage} from S3 ${s3BucketLocation}"
+		aws s3 cp --no-progress s3://${s3BucketLocation}${previousPackage} ./
 	fi
 }
 
@@ -215,11 +230,11 @@ ensureCorrectResponse() {
 
 loginToIMS
 downloadDelta
-downloadPreviousRelease
+downloadpreviousPackage
 mkdir -p ${converted_file_location}
 rm -r ./${converted_file_location}/* || true
 echo "Performing Concrete Domain Conversion..."
-java -jar target/CdConversion.jar -s ${previousRelease} -d ${deltaArchiveFile}
+java -jar target/CdConversion.jar -s ${previousPackage} -d ${deltaArchiveFile}
 classify
 applyClassificationChanges
 callSrs
