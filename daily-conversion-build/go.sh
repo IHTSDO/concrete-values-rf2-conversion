@@ -74,10 +74,12 @@ downloadDelta() {
 classify() {
   echo "Zipping up the converted files"
   convertedArchive="convertedArchive.zip"
+  rm ${convertedArchive} || true
   zip -r ${convertedArchive} ${converted_file_location}
   
   echo "Zipping up the converted files needed for classification"
   convertedClassificationArchive="convertedClassificationArchive.zip"
+  rm ${convertedClassificationArchive} || true
 	shopt -s globstar
   zip  ${convertedClassificationArchive} ${converted_file_location}/**/*Concept* ${converted_file_location}/**/*_Relationship* ${converted_file_location}/**/*OWL* ${converted_file_location}/**/*_cissccRefset_MRCMAttributeDomain*
 
