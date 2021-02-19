@@ -12,7 +12,7 @@ import java.util.regex.Pattern;
 import java.util.zip.*;
 
 /**
- * RF2 Conversion Script to replace existing concepts-as-numbers with concreate values
+ * RF2 Conversion Script to replace existing concepts-as-numbers with concrete values
  */
 public class CdConversion
 {
@@ -38,6 +38,7 @@ public class CdConversion
 	private Map<Path, PrintWriter> printWriterMap = new HashMap<>();
 	private Pattern pattern = Pattern.compile(REGEX);
 	private int conceptsRemodelled = 0;
+	private boolean cdiChangesOnly = false;
 	
 	private DateTimeFormatter dtFormatter = DateTimeFormatter.ofPattern("yyyyMMdd");
 	private String today;
@@ -52,7 +53,7 @@ public class CdConversion
 		info("=========================================================");
 	
 		if (args.length < 1) {
-			exit("Usage: java -jar CdConversion -s <snapshot dependency archive> [-e <snapshot extension archive>] [-d <delta archive>] [-c <config mapping file> or config.txt is used]");
+			exit("Usage: java -jar CdConversion -s <snapshot dependency archive> [-e <snapshot extension archive>] [-d <delta archive>] [ -o only output modified axioms] [-c <config mapping file> or config.txt is used]");
 		}
 		
 		CdConversion app = new CdConversion();
@@ -66,6 +67,8 @@ public class CdConversion
 				app.delta = validateFile(args[x+1]);
 			} else if (thisArg.equals("-c")) {
 				app.attributeMapConfig = validateFile(args[x+1]);
+			} else if (thisArg.equals("-o")) {
+				app.cdiChangesOnly = true;
 			}
 		}
 		
@@ -179,7 +182,6 @@ public class CdConversion
 		
 		info("Appending non-superseeded snapshot conversion remainder");
 		for (String[] fields : outputOWLMap.values()) {
-			conceptsRemodelled++;
 			writeRF2(owlPath, fields);
 		}
 		
@@ -205,7 +207,7 @@ public class CdConversion
 				owlPath = p;
 			}
 			modifyOWLIfRequired(p, fields, isDelta);
-		} else if (isDelta) {
+		} else if (isDelta && !cdiChangesOnly) {
 			//We will pass through all non-owl delta files intact
 			writeRF2(p, fields);
 		}
@@ -226,15 +228,24 @@ public class CdConversion
 		//If the row is not active, no need to update.  Also if we previously knew about it,
 		//it's no longer applicable.
 		if (fields[IDX_ACTIVE].contentEquals("0")) {
-			outputOWLMap.remove(fields[IDX_ID]);
+			if (outputOWLMap.containsKey(fields[IDX_ID])) {
+				conceptsRemodelled--;
+				outputOWLMap.remove(fields[IDX_ID]);
+			}
 		} else {
 			String modifiedOwl = modifyOWLIfRequired(fields[IDX_REFCOMPID], owl);
 			//No need to change the effective time if the OWL is unchanged
-			if (!owl.contentEquals(modifiedOwl)) {
+			boolean isModified = !owl.contentEquals(modifiedOwl);
+			if (isModified) {
 				validateBeforeAndAfter(fields[IDX_REFCOMPID], owl, modifiedOwl);
-				conceptsRemodelled++;
+				
+				//Only count concept remodel if not seen before
+				if (!outputOWLMap.containsKey(fields[IDX_ID])) {
+					conceptsRemodelled++;
+				}
 				fields[IDX_EFFECTIVE_TIME] = "";
 				fields[IDX_OWL_EXPRESSION] = modifiedOwl;
+				
 				//Are we storing this value to output later if no further updates are received?
 				if (!isDelta) {
 					outputOWLMap.put(fields[IDX_ID], fields);
@@ -242,7 +253,7 @@ public class CdConversion
 			}
 			
 			//If we're processing a delta, we can output this directly
-			if (isDelta) {
+			if (isDelta && (!cdiChangesOnly || isModified)) {
 				writeRF2(p, fields);
 				//If we'd stored this OWL entry previously, we don't need that anymore
 				outputOWLMap.remove(fields[IDX_ID]);

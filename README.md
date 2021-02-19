@@ -27,6 +27,7 @@ java -jar target/CdConversion.jar -s ~/code/reporting-engine/script-engine/relea
 ```  
 java -jar target/CdConversion.jar -s ~/code/reporting-engine/script-engine/releases/SnomedCT_InternationalRF2_PRODUCTION_20200731T120000Z.zip -d ~/tmp/delta_MAIN_export_20200930.zip
 ```
+Note that a -o flag can be optionally specified to make the process only output modified axioms.  Otherwise the entire delta (including additional changes for concrete values) will be output.
 
 3.  Convert an extension release, based on a previous international release
 
