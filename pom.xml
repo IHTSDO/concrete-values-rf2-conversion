@@ -6,7 +6,7 @@
 
 	<groupId>org.snomed.otf</groupId>
 	<artifactId>concrete-values-rf2-conversion</artifactId>
-	<version>0.1-SNAPSHOT</version>
+	<version>1.0.0</version>
 
 	<name>concrete-values-rf2-conversion</name>
 	<description>A simple concrete-values-rf2-conversion.</description>
