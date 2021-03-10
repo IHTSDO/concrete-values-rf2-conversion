@@ -1,7 +1,5 @@
 # concrete-values-rf2-conversion
 
-__NOTE: Until SNOMED International have released an official technical preview containing concrete values, this conversion tool should be considered a work in progress.  In particular, the concepts featured in config.txt are subject to change until officially published in a release archive__
-
 This conversion tool will take a snapshot with an optional extension and/or an optional delta archive and change existing stated concepts-as-number 
 relationships (in the stated OWL file) into concrete relationships.  The output is an unzipped delta archive directory structure in a local output folder..
 
