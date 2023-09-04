@@ -1,3 +1,8 @@
+
+# Archive Status Notice
+**This repository is no longer maintained or used and has therefore been archived and made read-only. SNOMED International does not recommend using the code in this repository.**
+
+
 # concrete-values-rf2-conversion
 
 This conversion tool will take a snapshot with an optional extension and/or an optional delta archive and change existing stated concepts-as-number 
